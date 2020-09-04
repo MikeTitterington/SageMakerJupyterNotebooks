@@ -1,4 +1,4 @@
-# SageMakerJupyterNotebooks
+# SageMaker Jupyter Notebooks
 Run On-Demand Jupyter notebooks on AWS SageMaker.
 
 Automate the launching of AWS SageMaker notebook instances to run Jupyter Notebooks on the cloud.
