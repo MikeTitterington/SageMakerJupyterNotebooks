@@ -11,6 +11,9 @@ Upload the lambda_handler.py to AWS Lambda and create a cloudwatch event to hit 
 
 Commands
 python3 NotebookHandler.py start
+
 python3 NotebookHandler.py stop
+
 python3 NotebookHandler.py start --time-limit x
+
 (Where x is the amount of hours to keep the instance launched)
