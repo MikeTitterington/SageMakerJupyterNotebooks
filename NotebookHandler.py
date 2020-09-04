@@ -7,13 +7,14 @@ SUBNET = "subnet-"
 SECURITY = ["sg-"]
 SIZE = 'ml.p3.2xlarge'
 
+from datetime import datetime, timedelta
 homedir = os.environ['HOME']
 user = homedir.split('/')
 user = user[2]
 option = sys.argv[1]
 limit = 24
-n = len(sys.argv) 
-for i in range(2, n): 
+n = len(sys.argv)
+for i in range(2, n):
     if sys.argv[i] == '--time-limit':
         limit = sys.argv[i+1]
 
@@ -47,12 +48,12 @@ def start():
         response = ssm.get_parameter(
             Name='SageMakerData'
         )
-        newParameter = repsonse['Parameter']['Value']
+        newParameter = response['Parameter']['Value']
         data = '{"User": "' + user + '","Launch": "' + datetime.strftime(datetime.utcnow(),"%H:%M:%S - %B/%d/%y") + '","Limit": "' + limit + '"}'
         if newParameter == '---':
-            newParameter = newParameter + '---' + data
-        else:
             newParameter = data
+        else:
+            newParameter = newParameter + '---' + data
         ssm.put_parameter(
             Name='SageMakerData',
             Value=newParameter,
@@ -120,7 +121,9 @@ def _create_new_task():
                                                         InstanceType=SIZE,
                                                         RoleArn='arn:aws:iam::' + ACCOUNT + ':role/AmazonSageMaker-ExecutionRole',
                                                         SubnetId=SUBNET,
-                                                        #LifecycleConfigName='',
+                                                        LifecycleConfigName='Configure-LDAP',
+                                                        VolumeSizeInGB=100,
+                                                        DirectInternetAccess='Disabled',
                                                         SecurityGroupIds=SECURITY
         )
         try:
