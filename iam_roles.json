@@ -1,0 +1,27 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Action": [
+                "s3:*",
+                "ec2:*",
+                "sagemaker:CreateNotebookInstance",
+                "sagemaker:CreatePresignedNotebookInstanceUrl",
+                "sagemaker:StopNotebookInstance",
+                "sagemaker:ListNotebookInstances",
+                "sagemaker:DescribeNotebookInstance",
+                "sagemaker:StartNotebookInstance",
+                "ssm:*"
+            ],
+            "Resource": "*",
+            "Effect": "Allow"
+        },
+        {
+            "Action": [
+                "iam:PassRole"
+            ],
+            "Resource": "arn:aws:iam::*:role/AmazonSageMaker-ExecutionRole",
+            "Effect": "Allow"
+        }
+    ]
+}
