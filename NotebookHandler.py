@@ -5,6 +5,7 @@ REGION = "us-west-1"
 ACCOUNT = "123456789"
 SUBNET = "subnet-"
 SECURITY = ["sg-"]
+SIZE = 'ml.p3.2xlarge'
 
 homedir = os.environ['HOME']
 user = homedir.split('/')
@@ -116,10 +117,10 @@ def _create_new_task():
     else:
         print("\nNo notebooks found 'Stopped'... Creating new notebook\n\nThis may take a few minutes.")
         notebook = sage_client.create_notebook_instance(NotebookInstanceName=user + 'NotebookInstance',
-                                                        InstanceType='ml.p3.2xlarge',
-                                                        RoleArn='arn:aws:iam::ACCOUNT:role/AmazonSageMaker-ExecutionRole',
+                                                        InstanceType=SIZE,
+                                                        RoleArn='arn:aws:iam::' + ACCOUNT + ':role/AmazonSageMaker-ExecutionRole',
                                                         SubnetId=SUBNET,
-                                                        LifecycleConfigName='Configure-LDAP',
+                                                        #LifecycleConfigName='',
                                                         SecurityGroupIds=SECURITY
         )
         try:
