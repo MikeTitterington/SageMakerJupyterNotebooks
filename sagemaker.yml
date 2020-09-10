@@ -102,153 +102,73 @@ Resources:
       Timeout: 30
       Code:
         ZipFile: |
-          import sys
-          import os
-
-          REGION = "us-west-1"
-          ACCOUNT = "123456789"
-          SUBNET = "subnet-"
-          SECURITY = ["sg-"]
-          SIZE = 'ml.p3.2xlarge'
-
+          import json
           from datetime import datetime, timedelta
-          homedir = os.environ['HOME']
-          user = homedir.split('/')
-          user = user[2]
-          option = sys.argv[1]
-          limit = 24
-          n = len(sys.argv)
-          for i in range(2, n):
-              if sys.argv[i] == '--time-limit':
-                  limit = sys.argv[i+1]
-
-          tries = 0
-          max = 7
-
-          def install_and_import(package):
-              import importlib
-              try:
-                  importlib.import_module(package)
-              except ImportError:
-                  import pip
-                  pip.main(['install', package, '--user'])
-              finally:
-                  import site
-                  from importlib import reload
-                  reload(site)
-                  globals()[package] = importlib.import_module(package)
-
-
-          install_and_import('boto3')
           import boto3
+          ssm = boto3.client('ssm')
+          sage_client = boto3.client('sagemaker', region_name='us-gov-west-1')
 
-          sage_client = boto3.client('sagemaker', region_name=REGION)
-          ssm = boto3.client('ssm', region_name=REGION)
 
-          def start():
-              notebook = get_task()
-              if notebook is None:
-                  url = _create_new_task()
-                  response = ssm.get_parameter(
-                      Name='SageMakerData'
-                  )
-                  newParameter = response['Parameter']['Value']
-                  data = '{"User": "' + user + '","Launch": "' + datetime.strftime(datetime.utcnow(),"%H:%M:%S - %B/%d/%y") + '","Limit": "' + limit + '"}'
-                  if newParameter == '---':
-                      newParameter = data
-                  else:
-                      newParameter = newParameter + '---' + data
-                  ssm.put_parameter(
-                      Name='SageMakerData',
-                      Value=newParameter,
-                      Type='String',
-                      Overwrite=True
-                  )
-                  print('Press Enter for you presigned URL. Paste this into your browser to connect to the notebook.')
-                  x = input()
-                  return url
-              else:
-                  url = sage_client.create_presigned_notebook_instance_url(NotebookInstanceName=user + 'NotebookInstance')['AuthorizedUrl']
-                  print('Press Enter for you presigned URL. Paste this into your browser to connect to the notebook.')
-                  x = input()
-                  return url
-              raise ValueError('Not handled yet')
-
-          def stop():
-              name = user + 'NotebookInstance'
-              sage_client.stop_notebook_instance(NotebookInstanceName=name)
+          def stop(user):
               try:
-                  waiter = sage_client.get_waiter('notebook_instance_stopped')
-                  print('Stopping notebook\n\nThis may take a few minutes.')
-                  waiter.wait(NotebookInstanceName=user + 'NotebookInstance')
+                  name = user + 'NotebookInstance'
+                  sage_client.stop_notebook_instance(NotebookInstanceName=name)
               except Exception as e:
-                  if tries > max:
-                      raise e
-                  tries += 1
-                  sleep(20)
+                  print('Cant shutdown ' + user + 'NotebookInstance. Might be shutdown already')
 
-          def get_task():
-              notebooks = sage_client.list_notebook_instances(
-                  NameContains=user,
-                  StatusEquals='InService'
-              )
-              if notebooks and len(notebooks['NotebookInstances']) > 0:
-                  return sage_client.describe_notebook_instance(
-                      NotebookInstanceName=notebooks['NotebookInstances'][0]['NotebookInstanceName']
-                  )['NotebookInstanceName'][0]
+          def checkIfShutdown(timeLimit, launchTime):
+              
+              dateLaunchTime = datetime.strptime(launchTime, "%H:%M:%S - %B/%d/%y")
+              hours_from_then = dateLaunchTime + timedelta(hours=timeLimit)
+              print("Time to shutdown: " + str(hours_from_then))
+              print("Time launched: " + str(dateLaunchTime))
+              print("Time now: " + str(datetime.utcnow()))
+              if datetime.utcnow() > hours_from_then:
+                  return True
               else:
-                  print("No notebooks found 'InService'")
-                  return None
+                  return False
 
-          def _create_new_task():
-              notebooks = sage_client.list_notebook_instances(
-                  NameContains=user,
-                  StatusEquals='Stopped'
+          def checkIfDelete(user):
+              response = sage_client.describe_notebook_instance(
+                  NotebookInstanceName=user + 'NotebookInstance'
               )
-              if notebooks and len(notebooks['NotebookInstances']) > 0:
-                  sage_client.start_notebook_instance(NotebookInstanceName=user + 'NotebookInstance')
-                  try:
-                      print("Found 'Stopped' notebook... Starting notebook\n\nThis may take a few minutes.")
-                      waiter = sage_client.get_waiter('notebook_instance_in_service')
-                      waiter.wait(NotebookInstanceName=user + 'NotebookInstance')
-                  except Exception as e:
-                      if tries > max:
-                          raise e
-                      tries += 1
-                      sleep(20)
-                  response = sage_client.create_presigned_notebook_instance_url(NotebookInstanceName=user + 'NotebookInstance')
-
-                  return response['AuthorizedUrl']
+              if response['NotebookInstanceStatus'] != 'InService':
+                  return True
               else:
-                  print("\nNo notebooks found 'Stopped'... Creating new notebook\n\nThis may take a few minutes.")
-                  notebook = sage_client.create_notebook_instance(NotebookInstanceName=user + 'NotebookInstance',
-                                                                  InstanceType=SIZE,
-                                                                  RoleArn='arn:aws:iam::' + ACCOUNT + ':role/AmazonSageMaker-ExecutionRole',
-                                                                  SubnetId=SUBNET,
-                                                                  LifecycleConfigName='Configure-LDAP',
-                                                                  VolumeSizeInGB=100,
-                                                                  DirectInternetAccess='Disabled',
-                                                                  SecurityGroupIds=SECURITY
-                  )
-                  try:
-                      waiter = sage_client.get_waiter('notebook_instance_in_service')
-                      waiter.wait(NotebookInstanceName=user + 'NotebookInstance')
-                  except Exception as e:
-                      if tries > max:
-                          raise e
-                      tries += 1
-                      sleep(20)
+                  return False
 
-                  response = sage_client.create_presigned_notebook_instance_url(NotebookInstanceName=user + 'NotebookInstance')
-
-                  return response['AuthorizedUrl']
-
-          if option.lower() == 'start':
-              print('Starting notebook for User: ' + user)
-              print(start())
-          elif option.lower() == 'stop':
-              print('Stopping notebook for User: ' + user)
-              stop()
-              print('Stopped')
-          else:
-              print('No valid argument given. start/stop')
+          def lambda_handler(event, context):
+              response = ssm.get_parameter(
+                  Name='SageMakerData'
+              )
+              
+              shutdownList = response['Parameter']['Value'].split('---')
+              noList = ['', '']
+              print(shutdownList)
+              if shutdownList == noList:
+                  return
+              
+              for instance in shutdownList:
+                  jsonInstance = json.loads(instance)
+                  user = jsonInstance['User']
+                  launchTime = jsonInstance['Launch']
+                  timeLimit = jsonInstance['Limit']
+                  if checkIfShutdown(int(timeLimit), launchTime):
+                      stop(user)
+                      shutdownList.remove(instance)
+                  else:
+                      if checkIfDelete(user):
+                          shutdownList.remove(instance)
+                      else:
+                          print('Not time to shutdown.')
+              
+              stringList = '---'.join(map(str, shutdownList))
+              print(stringList)
+              if stringList == '':
+                  stringList = '---'
+              ssm.put_parameter(
+                  Name='SageMakerData',
+                  Value=stringList,
+                  Type='String',
+                  Overwrite=True
+              )
