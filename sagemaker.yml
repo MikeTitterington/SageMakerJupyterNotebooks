@@ -106,7 +106,7 @@ Resources:
           from datetime import datetime, timedelta
           import boto3
           ssm = boto3.client('ssm')
-          sage_client = boto3.client('sagemaker', region_name='us-gov-west-1')
+          sage_client = boto3.client('sagemaker')
 
 
           def stop(user):
